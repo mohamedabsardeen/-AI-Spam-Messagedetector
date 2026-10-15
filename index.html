@@ -1,0 +1,311 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>AI Spam Detector</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one centered tool column. Input on top, verdict below, training data tucked underneath. */
+:root {
+  --bg: #f6f4f9;
+  --surface: #ffffff;
+  --fg: #1f1830;
+  --muted: #6b6480;
+  --line: #ddd7e8;
+  --accent: #5b2a86;
+  --accent-fg: #ffffff;
+  --spam: #b3261e;
+  --spam-bg: #fbe9e7;
+  --ham: #1e7a3c;
+  --ham-bg: #e5f4ea;
+  --font-display: "Bricolage Grotesque", "Segoe UI", Arial, sans-serif;
+  --font-body: "IBM Plex Sans", "Segoe UI", Arial, sans-serif;
+  --font-mono: "IBM Plex Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #17121f;
+    --surface: #211a2e;
+    --fg: #efeaf7;
+    --muted: #a59bb8;
+    --line: #382e4a;
+    --accent: #b794e6;
+    --accent-fg: #17121f;
+    --spam: #ff8a80;
+    --spam-bg: #3a1f22;
+    --ham: #7fd69a;
+    --ham-bg: #1b3326;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #17121f;
+  --surface: #211a2e;
+  --fg: #efeaf7;
+  --muted: #a59bb8;
+  --line: #382e4a;
+  --accent: #b794e6;
+  --accent-fg: #17121f;
+  --spam: #ff8a80;
+  --spam-bg: #3a1f22;
+  --ham: #7fd69a;
+  --ham-bg: #1b3326;
+  color-scheme: dark;
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.55;
+  padding-block: 40px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+main { max-width: 620px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; }
+h1 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 34px;
+  line-height: 1.1;
+  margin: 0;
+  text-wrap: balance;
+}
+.lede { margin: 8px 0 0; color: var(--muted); max-width: 60ch; }
+
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+label.field { font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); font-weight: 500; }
+textarea {
+  width: 100%;
+  min-height: 120px;
+  resize: vertical;
+  background: var(--bg);
+  color: var(--fg);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 12px;
+  font: inherit;
+}
+textarea:focus-visible, button:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+button {
+  font: inherit;
+  font-weight: 500;
+  border-radius: 6px;
+  padding: 10px 18px;
+  cursor: pointer;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: var(--accent-fg);
+}
+button:hover { filter: brightness(1.08); }
+button.ghost { background: transparent; color: var(--accent); }
+.samples { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.samples span { color: var(--muted); font-size: 13px; }
+.samples button { padding: 6px 12px; font-size: 13px; }
+
+.verdict { border-radius: 8px; padding: 18px 20px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.verdict.spam { background: var(--spam-bg); color: var(--spam); }
+.verdict.ham { background: var(--ham-bg); color: var(--ham); }
+.verdict.idle { background: var(--surface); color: var(--muted); border: 1px dashed var(--line); }
+.verdict .big { font-family: var(--font-display); font-size: 28px; font-weight: 700; line-height: 1.1; }
+.verdict .meta { font-family: var(--font-mono); font-size: 13px; font-variant-numeric: tabular-nums; }
+.meter { height: 8px; border-radius: 4px; background: color-mix(in srgb, currentColor 18%, transparent); overflow: hidden; }
+.meter i { display: block; height: 100%; width: 0; background: currentColor; transition: width 0.4s; }
+@media (prefers-reduced-motion: reduce) { .meter i { transition: none; } }
+.words { display: flex; flex-wrap: wrap; gap: 6px; }
+.words b { font-weight: 500; font-family: var(--font-mono); font-size: 12px; padding: 2px 8px; border-radius: 4px; background: color-mix(in srgb, currentColor 14%, transparent); }
+.why { font-size: 13px; color: var(--fg); }
+
+details { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 14px 20px; }
+summary { cursor: pointer; font-weight: 500; }
+.data { margin-top: 12px; max-height: 280px; overflow: auto; font-size: 13px; }
+.data table { width: 100%; border-collapse: collapse; }
+.data td { padding: 5px 8px 5px 0; border-top: 1px solid var(--line); vertical-align: top; }
+.data td:first-child { font-family: var(--font-mono); width: 52px; color: var(--muted); }
+.note { color: var(--muted); font-size: 13px; margin: 0; max-width: 62ch; }
+</style>
+
+<main>
+  <header>
+    <h1>AI Spam Detector</h1>
+    <p class="lede">Paste a message to see if it looks like spam. This browser version learns from the same 50 example messages as the Flask project and runs a Naive Bayes classifier.</p>
+  </header>
+
+  <section class="panel">
+    <label class="field" for="msg">Message</label>
+    <textarea id="msg" placeholder="Type or paste a message here"></textarea>
+    <div class="row">
+      <button id="go" type="button">Predict</button>
+      <button id="clear" class="ghost" type="button">Clear</button>
+    </div>
+    <div class="samples">
+      <span>Try:</span>
+      <button class="ghost" type="button" data-s="WINNER! You have won a free prize. Click this link to claim your cash now">Prize text</button>
+      <button class="ghost" type="button" data-s="Hey, are we still meeting for lunch tomorrow?">Lunch plan</button>
+      <button class="ghost" type="button" data-s="URGENT: your bank account is suspended. Verify your password immediately">Bank alert</button>
+      <button class="ghost" type="button" data-s="Can you send me the project report before the meeting?">Work note</button>
+    </div>
+  </section>
+
+  <section id="out" class="verdict idle" aria-live="polite">
+    <div class="big">No result yet</div>
+    <div class="why">Press Predict to classify the message above.</div>
+  </section>
+
+  <details>
+    <summary>Training data (50 messages)</summary>
+    <div class="data"><table><tbody id="rows"></tbody></table></div>
+  </details>
+
+  <p class="note">This is a small demo model. With only 50 examples it will misjudge some messages. The Flask project lets you swap in a larger spam.csv for better accuracy.</p>
+</main>
+
+<script>
+const DATA = [
+["spam","WINNER!! You have won a $1000 gift card. Click here to claim your prize now"],
+["spam","Congratulations! You've been selected for a free iPhone. Reply YES to claim"],
+["spam","URGENT: Your bank account is suspended. Verify your details immediately at this link"],
+["spam","Free entry in a weekly competition to win tickets. Text WIN to 80085 now"],
+["spam","You have won a lottery of 5,000,000 dollars. Send your bank details to claim"],
+["spam","Get cheap loans approved instantly with no credit check. Apply now"],
+["spam","Claim your free vacation to the Bahamas. Limited time offer, call now"],
+["spam","Earn money from home! Make $5000 a week with no experience needed"],
+["spam","Your PayPal account has been limited. Click the link to restore access"],
+["spam","Buy cheap medicines online without prescription. Huge discounts today only"],
+["spam","Congratulations, you are our lucky winner. Claim your cash reward today"],
+["spam","Act now! Exclusive deal, 90% off all products. Click to buy before it expires"],
+["spam","FREE ringtones and wallpapers! Reply STOP to unsubscribe. Subscribe now"],
+["spam","Your package could not be delivered. Pay the small fee at this link to reschedule"],
+["spam","Hot singles in your area are waiting to chat with you. Click here now"],
+["spam","You have been pre-approved for a credit card with a 50000 limit. Apply today"],
+["spam","Final notice: your car warranty is about to expire. Call now to renew"],
+["spam","Win a brand new car! Enter your email to participate in our giveaway"],
+["spam","Double your investment in 24 hours guaranteed. Invest in crypto now"],
+["spam","Dear customer, your account will be closed. Confirm your password at this link now"],
+["spam","Free gift waiting for you. Claim your reward before midnight, limited stock"],
+["spam","Lowest price on weight loss pills. Lose 10 kg in one week guaranteed"],
+["spam","You won 2 free movie tickets. Call 09061701461 to claim your prize now"],
+["spam","Special offer just for you: get a free credit report and cash bonus today"],
+["spam","Make fast cash now. Work from home and earn thousands daily. Sign up free"],
+["ham","Hey, are we still meeting for lunch tomorrow at 1pm?"],
+["ham","Can you send me the notes from yesterday's class when you get a chance?"],
+["ham","I'll be home by 7. Do you want me to pick up dinner on the way?"],
+["ham","Happy birthday! Hope you have a wonderful day with your family"],
+["ham","The meeting has been moved to 3pm. Please bring the project report"],
+["ham","Thanks for helping me with the assignment, I really appreciate it"],
+["ham","Don't forget to call mom tonight, it's her birthday tomorrow"],
+["ham","I'm running a bit late, will be there in 15 minutes"],
+["ham","Could you review my code and let me know what you think?"],
+["ham","Let's go for a movie this weekend if you are free"],
+["ham","Reminder: your dentist appointment is on Friday at 10am"],
+["ham","Good morning! Did you sleep well? See you at college today"],
+["ham","I finished the presentation slides, will share them in the evening"],
+["ham","What time does the train leave? I want to reach the station early"],
+["ham","Please pick up some milk and bread on your way back home"],
+["ham","Great job on the exam results! Proud of you"],
+["ham","I am at the library studying for the exam. Call me later"],
+["ham","Can we reschedule our call to Monday morning?"],
+["ham","The kids had a great time at the park today"],
+["ham","Just reached the office. Traffic was really bad this morning"],
+["ham","Do you have the address of the restaurant we are going to tonight?"],
+["ham","Thanks for the dinner last night, it was delicious"],
+["ham","I will send you the invoice by tomorrow afternoon"],
+["ham","Are you coming to the family function on Sunday?"],
+["ham","Let me know when you are free and we can discuss the project plan"]
+];
+
+const STOP = new Set("a an and are as at be been but by for from has have he her him his i if in into is it its me my of on or our she so that the their them then there they this to was we were what when which who will with you your".split(" "));
+
+function tokens(text) {
+  const w = (text.toLowerCase().match(/[a-z0-9$%']+/g) || []).map(s => s.replace(/^'+|'+$/g, "")).filter(s => s && !STOP.has(s));
+  const out = w.slice();
+  for (let i = 0; i < w.length - 1; i++) out.push(w[i] + " " + w[i + 1]);
+  return out;
+}
+
+const model = { spam: { n: 0, c: new Map(), total: 0 }, ham: { n: 0, c: new Map(), total: 0 } };
+const vocab = new Set();
+DATA.forEach(([label, text]) => {
+  const m = model[label];
+  m.n++;
+  tokens(text).forEach(t => { m.c.set(t, (m.c.get(t) || 0) + 1); m.total++; vocab.add(t); });
+});
+
+function logProb(label, t) {
+  const m = model[label];
+  return Math.log(((m.c.get(t) || 0) + 1) / (m.total + vocab.size));
+}
+
+function classify(text) {
+  const t = tokens(text);
+  let s = Math.log(model.spam.n / DATA.length), h = Math.log(model.ham.n / DATA.length);
+  const evidence = [];
+  t.forEach(tok => {
+    if (!vocab.has(tok)) return;
+    const ls = logProb("spam", tok), lh = logProb("ham", tok);
+    s += ls; h += lh;
+    evidence.push({ tok, d: ls - lh });
+  });
+  const pSpam = 1 / (1 + Math.exp(h - s));
+  return { pSpam, evidence, known: evidence.length };
+}
+
+const $ = id => document.getElementById(id);
+const out = $("out");
+
+function esc(s) { return s.replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+
+function show() {
+  const text = $("msg").value.trim();
+  if (!text) {
+    out.className = "verdict idle";
+    out.innerHTML = '<div class="big">Message is empty</div><div class="why">Type or paste a message, then press Predict.</div>';
+    return;
+  }
+  const r = classify(text);
+  const spam = r.pSpam >= 0.5;
+  const conf = (spam ? r.pSpam : 1 - r.pSpam) * 100;
+  const pct = (r.pSpam * 100).toFixed(1);
+  const key = r.evidence.filter(e => spam ? e.d > 0.3 : e.d < -0.3)
+    .sort((a, b) => spam ? b.d - a.d : a.d - b.d)
+    .filter((e, i, arr) => arr.findIndex(x => x.tok === e.tok) === i)
+    .slice(0, 6);
+  let why;
+  if (r.known === 0) why = "None of these words appear in the training data, so this is a guess.";
+  else if (key.length) why = (spam ? "Spam-like words: " : "Normal-message words: ");
+  else why = "No strong spam or normal signals. Treat this result as uncertain.";
+  out.className = "verdict " + (spam ? "spam" : "ham");
+  out.innerHTML =
+    '<div class="big">' + (spam ? "Spam" : "Not Spam") + "</div>" +
+    '<div class="meta">Confidence ' + conf.toFixed(1) + "%  |  Spam probability " + pct + "%</div>" +
+    '<div class="meter"><i style="width:' + pct + '%"></i></div>' +
+    '<div class="why">' + why + "</div>" +
+    (key.length ? '<div class="words">' + key.map(k => "<b>" + esc(k.tok) + "</b>").join("") + "</div>" : "");
+}
+
+$("go").addEventListener("click", show);
+$("clear").addEventListener("click", () => {
+  $("msg").value = "";
+  out.className = "verdict idle";
+  out.innerHTML = '<div class="big">No result yet</div><div class="why">Press Predict to classify the message above.</div>';
+});
+document.querySelectorAll("[data-s]").forEach(b => b.addEventListener("click", () => { $("msg").value = b.dataset.s; show(); }));
+$("msg").addEventListener("keydown", e => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) show(); });
+
+$("rows").innerHTML = DATA.map(([l, t]) => "<tr><td>" + l + "</td><td>" + esc(t) + "</td></tr>").join("");
+
+$("msg").value = "WINNER! You have won a free prize. Click this link to claim your cash now";
+show();
+</script>
+
+</body></html>
